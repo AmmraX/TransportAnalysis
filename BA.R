@@ -1,0 +1,244 @@
+install.packages("readr")
+install.packages("ggplot2")
+install.packages("psych")
+install.packages("moments")
+install.packages("readr")
+install.packages("dplyr")
+install.packages("car")
+install.packages("nortest")
+install.packages("FSA")
+install.packages("corrplot")
+install.packages("broom")
+install.packages("ggplot2")
+install.packages("ggpubr")
+
+
+library(readr)
+library(ggplot2)
+library(psych)
+library(moments)
+library(dplyr)
+library(car)
+library(nortest)
+library(FSA)
+library(corrplot)
+library(broom)
+library(ggplot2)
+library(ggpubr)
+
+setwd("C:\\Users\\ammra\\Desktop\\Transport_Analysis")
+
+data <- read.csv("auto_info.csv")
+
+str(data)
+
+describe(data [, c ("engine_size","horsepower","curb_weight","price")])
+
+plot_and_save_bell <- function(data, var, var_name, filename) {
+  p <- ggplot(data, aes(x = {{var}})) +
+    geom_histogram(aes(y = ..density..), bins = 30, fill = "lightblue", 
+                   color = "black", alpha = 0.7) +
+    geom_density(color = "red", size = 1) +
+    labs(title = paste("Bell Curve -", var_name),
+         x = var_name, y = "Density") +
+    theme_minimal()
+  ggsave(filename = filename, plot = p, width = 8, height = 6, dpi = 300)
+  return(p)
+}
+
+plot_and_save_bell(data, engine_size, "Engine Size", "engine_size_bell_curve.png")
+plot_and_save_bell(data, horsepower, "Horsepower", "horsepower_bell_curve.png")
+plot_and_save_bell(data, curb_weight, "Curb Weight", "curb_weight_bell_curve.png")
+plot_and_save_bell(data, price, "Price", "price_bell_curve.png")
+
+price_stats <-data %>%
+  group_by(vehicle_type) %>%
+  summarise(
+    n = n(),
+    mean_price = mean(price),
+    median_price = median(price),
+    sd_price = sd(price),
+    min_price = min(price),
+    max_price = max(price)
+  )
+
+print(price_stats)
+
+normality_tests <-data %>%
+  group_by(vehicle_type) %>%
+  summarise(
+    shapiro_p = shapiro.test(price)$p.value
+  )
+
+print(normality_tests)
+
+
+my_colors <- c("#ebdf78", "#d0eafb", "#d5fbd0", "#d62728", "#f8d0fb", "#8c564b")
+p_box <- ggplot(data, aes(x = vehicle_type, y = price, fill = vehicle_type)) +
+  geom_boxplot() +
+  scale_fill_manual(values = my_colors) + 
+  labs(title = "Vehicle Price Distribution by Type",
+       x = "Vehicle Type",
+       y = "Price (USD)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none") 
+ggsave("price_by_type_boxplot.png", p_box, width = 8, height = 6, dpi = 300)
+print(p_box)
+
+anova_result <- aov(price ~ vehicle_type, data = data)
+print("One-way ANOVA results:")
+summary(anova_result)
+
+data$vehicle_type <- as.factor(data$vehicle_type)
+data$brand <- as.factor(data$brand)
+
+describe(data[, c("price", "engine_size", "horsepower", "curb_weight", "age")])
+
+
+png("vehicle_feature_distributions.png", width = 10, height = 8, units = "in", res = 300)
+par(mfrow = c(2, 3), mar = c(4, 4, 3, 1)) 
+hist(data$price, main = "Price Distribution", xlab = "Price (USD)", 
+     col = "lightblue", border = "black")
+hist(data$engine_size, main = "Engine Size Distribution", xlab = "Engine Size (L)", 
+     col = "lightgreen", border = "black")
+hist(data$horsepower, main = "Horsepower Distribution", xlab = "Horsepower (hp)", 
+     col = "lightcoral", border = "black")
+hist(data$curb_weight, main = "Curb Weight Distribution", xlab = "Curb Weight (lbs)", 
+     col = "lightgoldenrod", border = "black")
+hist(data$age, main = "Age Distribution", xlab = "Age (years)", 
+     col = "lavender", border = "black")
+plot.new()
+text(0.5, 0.5, "Distribution Plots\nof Vehicle Features", cex = 1.2, font = 2)
+par(mfrow = c(1, 1))
+dev.off()
+
+data.frame(
+  Variable = c("Price", "Engine Size", "Horsepower", "Curb Weight", "Age"),
+  W = c(
+    shapiro.test(data$price)$statistic,
+    shapiro.test(data$engine_size)$statistic,
+    shapiro.test(data$horsepower)$statistic,
+    shapiro.test(data$curb_weight)$statistic,
+    shapiro.test(data$age)$statistic
+  ),
+  p.value = c(
+    shapiro.test(data$price)$p.value,
+    shapiro.test(data$engine_size)$p.value,
+    shapiro.test(data$horsepower)$p.value,
+    shapiro.test(data$curb_weight)$p.value,
+    shapiro.test(data$age)$p.value
+  )
+)
+
+png("correlation_matrix.png", width = 8, height = 6, units = "in", res = 300)
+cor_matrix <- cor(data[, c("price", "engine_size", "horsepower", "curb_weight", "age")], 
+                  method = "spearman")
+corrplot(cor_matrix, 
+         method = "number",    
+         type = "upper",       
+         title = "Spearman Correlation Matrix of Vehicle Features",
+         mar = c(0, 0, 2, 0), 
+         number.cex = 0.9,     
+         tl.cex = 0.9,        
+         cl.cex = 0.8,        
+         addCoef.col = "black", 
+         tl.col = "black",     
+         bg = "white",         
+         col = colorRampPalette(c("blue", "white", "orange"))(200))
+mtext("Correlation coefficients with significance levels (p < 0.001 for all shown)", 
+      side = 1, line = 3, cex = 0.8)
+dev.off()
+
+
+cor_results <- data.frame(
+  Feature = c("Engine Size", "Horsepower", "Curb Weight", "Age"),
+  rho = c(
+    cor.test(data$price, data$engine_size, method = "spearman")$estimate,
+    cor.test(data$price, data$horsepower, method = "spearman")$estimate,
+    cor.test(data$price, data$curb_weight, method = "spearman")$estimate,
+    cor.test(data$price, data$age, method = "spearman")$estimate
+  ),
+  p.value = c(
+    cor.test(data$price, data$engine_size, method = "spearman")$p.value,
+    cor.test(data$price, data$horsepower, method = "spearman")$p.value,
+    cor.test(data$price, data$curb_weight, method = "spearman")$p.value,
+    cor.test(data$price, data$age, method = "spearman")$p.value
+  )
+)
+print(cor_results)
+
+model <- lm(price ~ engine_size + horsepower + curb_weight + age, data = data)
+summary(model)
+vif(model)
+
+png("regression_diagnostics.png", width = 10, height = 8, units = "in", res = 300)
+par(mfrow = c(2, 2))
+plot(model)
+par(mfrow = c(1, 1))
+dev.off()
+
+sink("residual_normality_test.txt")
+shapiro.test(residuals(model))
+sink()
+
+png("scatterplot_matrix.png", width = 10, height = 8, units = "in", res = 300)
+pairs(data[, c("price", "engine_size", "horsepower", "curb_weight", "age")], 
+      main = "Scatterplot Matrix of Numerical Variables",
+      col = "steelblue",
+      pch = 16,
+      cex = 0.7,
+      gap = 0.5)
+dev.off()
+
+png("price_vs_engine_size.png", width = 8, height = 6, units = "in", res = 300)
+print(
+  ggplot(data, aes(x = engine_size, y = price)) +
+    geom_point(color = "#2c7fb8", alpha = 0.6) + 
+    geom_smooth(method = "lm", color = "#e41a1c", se = TRUE) +
+    labs(title = "Price vs Engine Size", 
+         x = "Engine Size (L)", 
+         y = "Price (USD)") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+)
+dev.off()
+
+png("price_vs_horsepower.png", width = 8, height = 6, units = "in", res = 300)
+print(
+  ggplot(data, aes(x = horsepower, y = price)) +
+    geom_point(color = "#2c7fb8", alpha = 0.6) + 
+    geom_smooth(method = "lm", color = "#e41a1c", se = TRUE) +
+    labs(title = "Price vs Horsepower", 
+         x = "Horsepower (hp)", 
+         y = "Price (USD)") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+)
+dev.off()
+
+png("price_vs_curb_weight.png", width = 8, height = 6, units = "in", res = 300)
+print(
+  ggplot(data, aes(x = curb_weight, y = price)) +
+    geom_point(color = "#2c7fb8", alpha = 0.6) + 
+    geom_smooth(method = "lm", color = "#e41a1c", se = TRUE) +
+    labs(title = "Price vs Curb Weight", 
+         x = "Curb Weight (lbs)", 
+         y = "Price (USD)") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+)
+dev.off()
+
+png("price_vs_age.png", width = 8, height = 6, units = "in", res = 300)
+print(
+  ggplot(data, aes(x = age, y = price)) +
+    geom_point(color = "#2c7fb8", alpha = 0.6) + 
+    geom_smooth(method = "lm", color = "#e41a1c", se = TRUE) +
+    labs(title = "Price vs Age", 
+         x = "Age (years)", 
+         y = "Price (USD)") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+)
+dev.off()
